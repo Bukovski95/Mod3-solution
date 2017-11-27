@@ -1,98 +1,108 @@
-(function() {
+(function () {
+'use strict';
 
-  "use strict";
-  angular.module('NarrowItDownApp', [])
-    .controller('NarrowItDownController', NarrowItDownController)
-    .controller('MenuListDirectiveController', MenuListDirectiveController)
-    .directive('foundItems', FoundItems)
-    .service('MenuSearchService', MenuSearchService)
-    .constant('ApiBasePath', "https://davids-restaurant.herokuapp.com");
+angular.module('NarrowItDownApp', [])
+.controller('NarrowItDownAppController', NarrowItDownAppController)
+.service('NarrowItDownAppService', NarrowItDownAppService)
+.directive('shoppingList', NarrowItDownAppDirective)
+.constant('ApiBasePath', "https://davids-restaurant.herokuapp.com");
 
-  function FoundItems() {
-    var ddo = {
-      templateUrl: 'foundItems.html',
-      scope: {
-        items: '<',
-        emptyResult: '<',
-        onRemove: '='
-      },
-      controller: MenuListDirectiveController,
-      controllerAs: 'list',
-      bindToController: true
 
-    };
+function NarrowItDownAppDirective() {
+  var ddo = {
+    templateUrl:'listItem.html',
+    scope: {
+      items: '<',
+      myTitle: '@title',
+      onRemove: '&'
+    },
+    controller: NarrowItDownAppDirectiveController,
+    controllerAs: 'list',
+    bindToController: true
+  };
 
-    return ddo;
-  }
+  return ddo;
+}
 
-  function MenuListDirectiveController() {
-    var list = this;
 
-    list.checkForEmpty = function() {
-      return !list.searchTerm && list.emptyResult;
-    }
-  }
+function NarrowItDownAppDirectiveController() {
+  var list = this;
 
-  NarrowItDownController.$inject = ['MenuSearchService']
-
-  function NarrowItDownController(MenuSearchService) {
-    var list = this;
-
-    list.emptyResult = false;
-    list.searchTerm = "";
-
-    list.find = function(searchTerm) {
-      list.found = [];
-      if (searchTerm) {
-        list.emptyResult = false;
-        var promise = MenuSearchService.getMatchedMenuItems(searchTerm);
-        promise.then(function(response) {
-          list.found = response;
-          list.emptyResult = list.found.length == 0;
-        });
-      } else {
-        list.emptyResult = true;
+  list.cookiesInList = function () {
+      //console.log("'this' is: ", list.items.length);
+    for (var i = 0; i < list.items.length; i++) {
+      var name = list.items[i].name;
+      if (name.toLowerCase().indexOf("cookie") !== -1) {
+        return true;
       }
     }
 
-    list.removeItem = function(index) {
-      MenuSearchService.removeItem(list.found, index);
-    }
+    return true;
+  };
+}
 
-  }
 
-  MenuSearchService.$inject = ['$http', 'ApiBasePath']
+NarrowItDownAppController.$inject = ['NarrowItDownAppService'];
+function NarrowItDownAppController(NarrowItDownAppService) {
+  var list = this;
 
-  function MenuSearchService($http, ApiBasePath) {
-    var service = this;
+  list.itemName = "";
+  list.itemQuantity = "";
+  this.title = "Search Results";
 
-    service.getMatchedMenuItems = function(searchTerm) {
-      return $http({
+  list.searchItem = function () {
+    NarrowItDownAppService.searchItem(list.searchterm);
+    list.items = NarrowItDownAppService.getItems();
+    console.log("'this' is: ", list.items.length);
+  };
+
+  list.removeItem = function (itemIndex) {
+    console.log("'this' is: ", this);
+    this.lastRemoved = "Last item removed was " + this.items[itemIndex].name;
+    NarrowItDownAppService.removeItem(itemIndex);
+  };
+}
+
+NarrowItDownAppService.$inject = ['$http', 'ApiBasePath'];
+function NarrowItDownAppService($http, ApiBasePath) {
+  var service = this;
+
+  var items = [];
+  var foundItems = [];
+
+  service.searchItem = function (searchterm) {
+    items = [];
+    if(searchterm) {
+    $http({
         method: "GET",
-        dataType: "json",
         url: (ApiBasePath + "/menu_items.json")
-      }).then(function(response) {
-        var found = [];
-        var menuItems = response.data.menu_items;
-        for (var i = 0; i < menuItems.length; i++) {
-          var description = menuItems[i].description;
-          if (description == null) {
-            continue;
-          }
-
-          description = description.toLowerCase();
-          if (description.indexOf(searchTerm) !== -1) {
-            found.push(menuItems[i]);
-          }
-        }
-        return found;
-      })
-    };
-
-    service.removeItem = function(array, index) {
-      if (array != null) {
-        array.splice(index, 1);
+      }).then(function mySuccess(response) {
+          // a string, or an object, carrying the response from the server.
+          foundItems = response.data.menu_items;
+          for (var i = 0; i < foundItems.length; i++) {
+              var description = foundItems[i].description;
+            if (description.indexOf(searchterm) !== -1) {
+              var item  = {
+                      name: foundItems[i].name,
+                      short_name:foundItems[i].short_name,
+                      description: foundItems[i].description
+              }
+              items.push(item);
+            }
+            }
+        }, function myError(response) {
+          console.log('addItem:Error' + response.data);
+      });
       }
-    };
-  }
+  };
+
+  service.removeItem = function (itemIndex) {
+    items.splice(itemIndex, 1);
+  };
+
+  service.getItems = function () {
+    return items;
+  };
+}
+
 })();
